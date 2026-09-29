@@ -1,0 +1,38 @@
+# Visual Studio
+.vs/
+*.vsidx
+*.suo
+*.user
+
+# Build rezultati
+[Bb]in/
+[Oo]bj/
+
+# MAUI / .NET
+*.binlog
+*.dll
+*.exe
+*.pdb
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Android / iOS / Mac Catalyst
+*.apk
+*.aab
+*.ipa
+*.app
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# NuGet
+*.nupkg
+packages/

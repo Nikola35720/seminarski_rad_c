@@ -1,0 +1,4 @@
+@CsvChartServer_HostAddress = http://localhost:5078
+
+GET {{CsvChartServer_HostAddress}}/weatherforecast/
+Accept: application/json

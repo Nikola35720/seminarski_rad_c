@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="CsvChartClient.Views.MainPage"
+             Title="CSV Chart Viewer">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="10">
+
+        <HorizontalStackLayout Grid.Row="0" Spacing="10">
+            <Button Text="Osveži listu fajlova" Clicked="OnRefreshClicked"/>
+            <Label Text="Tip grafikona:" VerticalOptions="Center"/>
+            <Picker x:Name="ChartTypePicker"
+            SelectedIndexChanged="OnChartTypeChanged"
+            WidthRequest="130">
+                <Picker.ItemsSource>
+                    <x:Array Type="{x:Type x:String}">
+                        <x:String>Linijski</x:String>
+                        <x:String>Stubicasti</x:String>
+                        <x:String>Pita</x:String>
+                    </x:Array>
+                </Picker.ItemsSource>
+            </Picker>
+        </HorizontalStackLayout>
+        <HorizontalStackLayout Grid.Row="1" Spacing="10" Margin="0,5,0,5">
+            <Label Text="X osa:" VerticalOptions="Center"/>
+            <Picker x:Name="XAxisPicker"
+                    SelectedIndexChanged="OnXAxisChanged"
+                    WidthRequest="180"/>
+            <Label Text="Prikaži redova:" VerticalOptions="Center"/>
+            <Stepper x:Name="DisplayCountStepper"
+                     Minimum="10"
+                     Maximum="5000"
+                     Increment="10"
+                     Value="100"
+                     ValueChanged="OnDisplayCountChanged"
+                     WidthRequest="120"/>
+            <Label x:Name="DisplayCountLabel"
+                   Text="100"
+                   VerticalOptions="Center"
+                   WidthRequest="50"
+                   FontAttributes="Bold"/>
+            <CheckBox x:Name="SortCheckBox"
+                      CheckedChanged="OnSortChanged"
+                      VerticalOptions="Center"/>
+            <Label Text="Sortiraj po X osi" VerticalOptions="Center"/>
+        </HorizontalStackLayout>
+
+        <Grid Grid.Row="2" ColumnDefinitions="200,200,*">
+
+            <Border Grid.Column="0" Stroke="LightGray" Padding="5">
+                <CollectionView x:Name="FileList"
+                                SelectionMode="Single"
+                                SelectionChanged="OnFileSelected">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout Padding="8">
+                                <Label Text="{Binding Name}" FontAttributes="Bold"/>
+                                <Label Text="{Binding LastModified,
+                                              StringFormat='{0:dd.MM.yyyy HH:mm:ss}'}"
+                                       FontSize="12" TextColor="Gray"/>
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Border>
+
+            <Border Grid.Column="1" Stroke="LightGray" Padding="5" Margin="5,0,5,0">
+                <ScrollView>
+                    <VerticalStackLayout x:Name="SeriesListLayout" Spacing="5"/>
+                </ScrollView>
+            </Border>
+
+            <Border Grid.Column="2" Stroke="LightGray" Margin="5,0,0,0">
+                <GraphicsView x:Name="ChartView"/>
+            </Border>
+        </Grid>
+
+        <Label Grid.Row="3" x:Name="StatusLabel"
+               Text="Spremno" TextColor="Gray" Margin="0,5,0,0"/>
+    </Grid>
+</ContentPage>

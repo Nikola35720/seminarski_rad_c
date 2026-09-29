@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CsvChartClient/CsvChartClient.csproj" Id="aaab9e61-5dc1-40b3-b472-cfa1fe0002a3" />
+  <Project Path="CsvChartServer/CsvChartServer.csproj" Id="73f8575b-614f-419b-950b-be03976cfb12" />
+</Solution>
