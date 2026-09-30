@@ -23,7 +23,6 @@ public class ChartDrawable : IDrawable
     };
 
     private const int MaxXLabels = 15;
-    private const int MaxBars = 60;
     private const int MaxSlices = 8;
 
     public ChartDrawable(MainViewModel vm) => _vm = vm;
@@ -34,7 +33,7 @@ public class ChartDrawable : IDrawable
         var series = _vm.SeriesNames;
         var visible = _vm.VisibleSeriesIndices;
 
-        Debug.WriteLine($" {data.Count} redova, {series.Count} serija, {visible.Count} vidljivo, tip={_vm.ChartType}");
+        Debug.WriteLine($"[DRAW] {data.Count} redova, {series.Count} serija, {visible.Count} vidljivo, tip={_vm.ChartType}");
 
         if (data.Count == 0 || series.Count == 0 || visible.Count == 0) return;
 
@@ -71,7 +70,6 @@ public class ChartDrawable : IDrawable
         float itemWidth = 150;
         canvas.FontSize = 12;
 
-        int slot = 0;
         foreach (var idx in visible)
         {
             if (x + itemWidth > maxX) { x = 80; y += 20; }
@@ -85,7 +83,6 @@ public class ChartDrawable : IDrawable
                 HorizontalAlignment.Left, VerticalAlignment.Center);
 
             x += itemWidth;
-            slot++;
         }
     }
 
@@ -133,7 +130,6 @@ public class ChartDrawable : IDrawable
             canvas.DrawLine(left - 4, y, left, y);
         }
 
-        int slot = 0;
         foreach (var idx in visible)
         {
             canvas.StrokeColor = Palette[idx % Palette.Length];
@@ -157,7 +153,6 @@ public class ChartDrawable : IDrawable
                 float y = bottom - (float)((data[i].Values[idx] - min) / (max - min)) * h;
                 canvas.FillCircle(x, y, 3);
             }
-            slot++;
         }
 
         canvas.FontColor = Colors.Black;
@@ -189,14 +184,7 @@ public class ChartDrawable : IDrawable
         float top = 40, bottom = r.Height - 60;
         float w = right - left, h = bottom - top;
 
-        int maxGroups = MaxBars / Math.Max(1, visible.Count);
         IList<DataPoint> displayData = data;
-        bool truncated = false;
-        if (data.Count > maxGroups)
-        {
-            displayData = data.Take(maxGroups).ToList();
-            truncated = true;
-        }
 
         var (min, max) = GetRange(displayData, visible);
         max = Math.Max(1, max);
@@ -222,6 +210,9 @@ public class ChartDrawable : IDrawable
         float grupaW = w / displayData.Count;
         float stubW = grupaW / (visible.Count + 1);
 
+        bool showLabels = displayData.Count <= MaxXLabels;
+        int labelStep = GetLabelStep(displayData.Count);
+
         for (int i = 0; i < displayData.Count; i++)
         {
             int slot = 0;
@@ -238,7 +229,7 @@ public class ChartDrawable : IDrawable
                 slot++;
             }
 
-            if (displayData.Count <= MaxXLabels || i % GetLabelStep(displayData.Count) == 0)
+            if (showLabels || i % labelStep == 0)
             {
                 canvas.FontColor = Colors.Black;
                 canvas.FontSize = 11;
@@ -246,15 +237,6 @@ public class ChartDrawable : IDrawable
                     left + i * grupaW, bottom + 5, grupaW, 20,
                     HorizontalAlignment.Center, VerticalAlignment.Top);
             }
-        }
-
-        if (truncated)
-        {
-            canvas.FontColor = Colors.Gray;
-            canvas.FontSize = 11;
-            canvas.DrawString($"Prikazano {displayData.Count} od {data.Count} kategorija",
-                0, r.Height - 18, r.Width, 16,
-                HorizontalAlignment.Center, VerticalAlignment.Center);
         }
 
         canvas.FontSize = 12;

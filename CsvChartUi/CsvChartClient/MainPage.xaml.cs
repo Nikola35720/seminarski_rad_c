@@ -20,17 +20,14 @@ public partial class MainPage : ContentPage
         FileList.ItemsSource = _vm.Files;
         ChartView.Drawable = _drawable;
 
-        _vm.OnChartChanged += () =>
-        {
-            Debug.WriteLine(" OnChartChanged → Invalidate");
-            ChartView.Invalidate();
-        };
+        _vm.OnChartChanged += () => ChartView.Invalidate();
         _vm.OnNotification += PrikaziNotifikaciju;
         _vm.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.Status))
                 StatusLabel.Text = _vm.Status;
         };
+
         _vm.AllColumns.CollectionChanged += (s, e) =>
         {
             XAxisPicker.ItemsSource = _vm.AllColumns.ToList();
@@ -96,6 +93,7 @@ public partial class MainPage : ContentPage
 
     private void OnChartTypeChanged(object sender, EventArgs e)
         => _vm.ChartType = ChartTypePicker.SelectedIndex;
+
     private void OnXAxisChanged(object sender, EventArgs e)
     {
         if (XAxisPicker.SelectedItem is string col)
