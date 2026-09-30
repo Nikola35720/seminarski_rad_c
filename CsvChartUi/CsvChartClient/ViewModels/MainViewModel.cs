@@ -26,13 +26,16 @@ public class MainViewModel : BindableObject
     public event Action<string>? OnNotification;
     public event Action<string>? OnFileRemoved;
 
+    private string? _lastDeletedFile = null;
+    private DateTime _lastDeletedTime = DateTime.MinValue;
+
     private FileInfoModel? _selectedFile;
     public FileInfoModel? SelectedFile
     {
         get => _selectedFile;
         set
         {
-            Debug.WriteLine($" SelectedFile setter: {value?.Name}");
+            Debug.WriteLine($"[VM] SelectedFile setter: {value?.Name}");
             if (_selectedFile == value) return;
             _selectedFile = value;
             OnPropertyChanged();
@@ -70,7 +73,7 @@ public class MainViewModel : BindableObject
             if (_displayCount == value) return;
             _displayCount = value;
             OnPropertyChanged();
-            Debug.WriteLine($" DisplayCount = {value}");
+            Debug.WriteLine($"[VM] DisplayCount = {value}");
             if (_selectedFile != null)
                 _ = LoadFileAsync(_selectedFile.Name);
         }
@@ -129,7 +132,7 @@ public class MainViewModel : BindableObject
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"{ex}");
+            Debug.WriteLine($"[SIGNALR] {ex}");
             Status = "SignalR nije dostupan: " + ex.Message;
         }
 
@@ -157,7 +160,10 @@ public class MainViewModel : BindableObject
         {
             try
             {
-                Debug.WriteLine($" FileAdded: {info.Name}");
+                Debug.WriteLine($"[SIGNALR] FileAdded: {info.Name}");
+
+                bool isRename = _lastDeletedFile != null
+                    && (DateTime.Now - _lastDeletedTime).TotalSeconds < 1.0;
 
                 var existing = Files.FirstOrDefault(f => f.Name == info.Name);
                 if (existing != null) Files.Remove(existing);
@@ -168,7 +174,16 @@ public class MainViewModel : BindableObject
                 Files.Clear();
                 foreach (var f in sorted) Files.Add(f);
 
-                OnNotification?.Invoke($"Novi fajl: {info.Name} ({info.Size} B)");
+                if (isRename)
+                {
+                    OnNotification?.Invoke(
+                        $"Fajl '{_lastDeletedFile}' je preimenovan u '{info.Name}'");
+                    _lastDeletedFile = null;
+                }
+                else
+                {
+                    OnNotification?.Invoke($"Novi fajl: {info.Name}");
+                }
             }
             catch (Exception ex)
             {
@@ -183,7 +198,7 @@ public class MainViewModel : BindableObject
         {
             try
             {
-                Debug.WriteLine($" FileUpdated: {info.Name} ({info.Size} B)");
+                Debug.WriteLine($"[SIGNALR] FileUpdated: {info.Name} ({info.Size} B)");
 
                 var existing = Files.FirstOrDefault(f => f.Name == info.Name);
                 if (existing != null)
@@ -202,9 +217,13 @@ public class MainViewModel : BindableObject
 
                 if (_selectedFile?.Name == info.Name)
                 {
-                    Debug.WriteLine($" Auto-reload grafikona za {info.Name}");
+                    Debug.WriteLine($"[SIGNALR] Auto-reload grafikona za {info.Name}");
                     await LoadFileAsync(info.Name);
-                    OnNotification?.Invoke($"Fajl '{info.Name}' je osvezen.");
+                    OnNotification?.Invoke($"Fajl '{info.Name}' je izmenjen i grafikon je osvežen.");
+                }
+                else
+                {
+                    OnNotification?.Invoke($"Fajl '{info.Name}' je izmenjen.");
                 }
             }
             catch (Exception ex)
@@ -222,6 +241,9 @@ public class MainViewModel : BindableObject
             {
                 Debug.WriteLine($"[SIGNALR] FileDeleted: {fileName}");
 
+                _lastDeletedFile = fileName;
+                _lastDeletedTime = DateTime.Now;
+
                 var existing = Files.FirstOrDefault(f => f.Name == fileName);
                 if (existing != null) Files.Remove(existing);
 
@@ -237,7 +259,17 @@ public class MainViewModel : BindableObject
                     Status = "Izabrani fajl je obrisan.";
                 }
 
-                OnNotification?.Invoke($"Fajl '{fileName}' je obrisan sa servera.");
+                Task.Delay(1000).ContinueWith(_ =>
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        if (_lastDeletedFile == fileName)
+                        {
+                            OnNotification?.Invoke($"Fajl '{fileName}' je obrisan sa servera.");
+                            _lastDeletedFile = null;
+                        }
+                    });
+                });
             }
             catch (Exception ex)
             {
@@ -264,7 +296,7 @@ public class MainViewModel : BindableObject
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"API greska: {ex}");
+            Debug.WriteLine($"[LOADFILE] API greska: {ex}");
             Status = "Greska pri komunikaciji sa serverom.";
             return;
         }
@@ -314,7 +346,7 @@ public class MainViewModel : BindableObject
         var headers = csv.HeaderRecord;
         if (headers == null || headers.Length < 2)
         {
-            Debug.WriteLine("Manje od 2 kolone.");
+            Debug.WriteLine("[PARSE] Manje od 2 kolone.");
             return;
         }
 
@@ -391,7 +423,7 @@ public class MainViewModel : BindableObject
 
         RebuildSeriesToggles();
 
-        Debug.WriteLine($"Ucitano {ChartData.Count} od {TotalRows} redova, {SeriesNames.Count} serija");
+        Debug.WriteLine($"[PARSE] Ucitano {ChartData.Count} od {TotalRows} redova, {SeriesNames.Count} serija");
     }
 
     public void RebuildSeriesToggles()
