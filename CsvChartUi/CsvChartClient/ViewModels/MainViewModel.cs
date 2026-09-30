@@ -20,6 +20,7 @@ public class MainViewModel : BindableObject
     public ObservableCollection<string> SeriesNames { get; } = new();
     public ObservableCollection<string> AllColumns { get; } = new();
     public ObservableCollection<SeriesToggle> SeriesToggles { get; } = new();
+    public ObservableCollection<int> VisibleSeriesIndices { get; } = new();
 
     public event Action? OnChartChanged;
     public event Action<string>? OnNotification;
@@ -31,7 +32,7 @@ public class MainViewModel : BindableObject
         get => _selectedFile;
         set
         {
-            Debug.WriteLine($"[VM] SelectedFile setter: {value?.Name}");
+            Debug.WriteLine($" SelectedFile setter: {value?.Name}");
             if (_selectedFile == value) return;
             _selectedFile = value;
             OnPropertyChanged();
@@ -57,6 +58,7 @@ public class MainViewModel : BindableObject
             OnChartChanged?.Invoke();
         }
     }
+
     private int _displayCount = 100;
     public int DisplayCount
     {
@@ -68,7 +70,7 @@ public class MainViewModel : BindableObject
             if (_displayCount == value) return;
             _displayCount = value;
             OnPropertyChanged();
-            Debug.WriteLine($"[VM] DisplayCount = {value}");
+            Debug.WriteLine($" DisplayCount = {value}");
             if (_selectedFile != null)
                 _ = LoadFileAsync(_selectedFile.Name);
         }
@@ -116,9 +118,9 @@ public class MainViewModel : BindableObject
 
     public async Task InitializeAsync()
     {
-        _signalR.OnFileAdded += name => HandleFileEvent("DODAT", name);
-        _signalR.OnFileUpdated += name => HandleFileEvent("IZMENJEN", name);
-        _signalR.OnFileDeleted += name => HandleFileEvent("OBRISAN", name);
+        _signalR.OnFileAdded += info => HandleFileAdded(info);
+        _signalR.OnFileUpdated += info => HandleFileUpdated(info);
+        _signalR.OnFileDeleted += name => HandleFileDeleted(name);
 
         try
         {
@@ -149,52 +151,97 @@ public class MainViewModel : BindableObject
         foreach (var f in files) Files.Add(f);
     }
 
-    private void HandleFileEvent(string tip, string fileName)
+    private void HandleFileAdded(FileInfoModel info)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                Debug.WriteLine($" FileAdded: {info.Name}");
+
+                var existing = Files.FirstOrDefault(f => f.Name == info.Name);
+                if (existing != null) Files.Remove(existing);
+
+                Files.Add(info);
+
+                var sorted = Files.OrderBy(f => f.Name).ToList();
+                Files.Clear();
+                foreach (var f in sorted) Files.Add(f);
+
+                OnNotification?.Invoke($"Novi fajl: {info.Name} ({info.Size} B)");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[HANDLE ADDED] {ex}");
+            }
+        });
+    }
+
+    private void HandleFileUpdated(FileInfoModel info)
     {
         MainThread.BeginInvokeOnMainThread(async () =>
         {
             try
             {
-                switch (tip)
+                Debug.WriteLine($" FileUpdated: {info.Name} ({info.Size} B)");
+
+                var existing = Files.FirstOrDefault(f => f.Name == info.Name);
+                if (existing != null)
                 {
-                    case "DODAT":
-                        OnNotification?.Invoke($"Novi fajl je dodat: {fileName}");
-                        await RefreshFilesAsync();
-                        break;
+                    existing.Size = info.Size;
+                    existing.LastModified = info.LastModified;
 
-                    case "IZMENJEN":
-                        if (_selectedFile?.Name == fileName)
-                        {
-                            await LoadFileAsync(fileName);
-                            OnNotification?.Invoke($"Fajl '{fileName}' je osvežen.");
-                        }
-                        else
-                        {
-                            OnNotification?.Invoke($"Fajl '{fileName}' je izmenjen.");
-                            await RefreshFilesAsync();
-                        }
-                        break;
+                    int idx = Files.IndexOf(existing);
+                    Files.RemoveAt(idx);
+                    Files.Insert(idx, existing);
+                }
+                else
+                {
+                    Files.Add(info);
+                }
 
-                    case "OBRISAN":
-                        OnNotification?.Invoke($"Fajl '{fileName}' je obrisan sa servera.");
-                        OnFileRemoved?.Invoke(fileName);
-                        await RefreshFilesAsync();
-                        if (_selectedFile?.Name == fileName)
-                        {
-                            _selectedFile = null;
-                            ChartData.Clear();
-                            SeriesNames.Clear();
-                            AllColumns.Clear();
-                            SeriesToggles.Clear();
-                            OnChartChanged?.Invoke();
-                            Status = "Izabrani fajl je obrisan.";
-                        }
-                        break;
+                if (_selectedFile?.Name == info.Name)
+                {
+                    Debug.WriteLine($" Auto-reload grafikona za {info.Name}");
+                    await LoadFileAsync(info.Name);
+                    OnNotification?.Invoke($"Fajl '{info.Name}' je osvezen.");
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[HANDLE FILE EVENT] {ex}");
+                Debug.WriteLine($"[HANDLE UPDATED] {ex}");
+            }
+        });
+    }
+
+    private void HandleFileDeleted(string fileName)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                Debug.WriteLine($"[SIGNALR] FileDeleted: {fileName}");
+
+                var existing = Files.FirstOrDefault(f => f.Name == fileName);
+                if (existing != null) Files.Remove(existing);
+
+                if (_selectedFile?.Name == fileName)
+                {
+                    _selectedFile = null;
+                    ChartData.Clear();
+                    SeriesNames.Clear();
+                    AllColumns.Clear();
+                    SeriesToggles.Clear();
+                    VisibleSeriesIndices.Clear();
+                    OnChartChanged?.Invoke();
+                    Status = "Izabrani fajl je obrisan.";
+                }
+
+                OnNotification?.Invoke($"Fajl '{fileName}' je obrisan sa servera.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[HANDLE DELETED] {ex}");
             }
         });
     }
@@ -217,14 +264,14 @@ public class MainViewModel : BindableObject
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[LOADFILE] API greska: {ex}");
+            Debug.WriteLine($"API greska: {ex}");
             Status = "Greska pri komunikaciji sa serverom.";
             return;
         }
 
         if (string.IsNullOrEmpty(content))
         {
-            Status = "Fajl je prazan ili nije moguće ucitati.";
+            Status = "Fajl je prazan ili nije moguce ucitati.";
             return;
         }
 
@@ -235,7 +282,7 @@ public class MainViewModel : BindableObject
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($" {ex}");
+            Debug.WriteLine($"[PARSE] {ex}");
             Status = "Greska pri parsiranju: " + ex.Message;
             return;
         }
@@ -267,7 +314,7 @@ public class MainViewModel : BindableObject
         var headers = csv.HeaderRecord;
         if (headers == null || headers.Length < 2)
         {
-            Debug.WriteLine(" Manje od 2 kolone.");
+            Debug.WriteLine("Manje od 2 kolone.");
             return;
         }
 
@@ -313,15 +360,13 @@ public class MainViewModel : BindableObject
         }
 
         var allSeries = new List<string>();
-        var seriesColumnIndices = new List<int>();
         for (int c = 0; c < headers.Length; c++)
         {
             if (c == xIndex) continue;
             allSeries.Add(headers[c]);
-            seriesColumnIndices.Add(c);
         }
 
-        var numericIndices = new List<int>();  
+        var numericIndices = new List<int>();
         var numericSeriesNames = new List<string>();
 
         for (int i = 0; i < allSeries.Count; i++)
@@ -346,10 +391,8 @@ public class MainViewModel : BindableObject
 
         RebuildSeriesToggles();
 
-        Debug.WriteLine($" Ucitano {ChartData.Count} od {TotalRows} redova, {SeriesNames.Count} serija");
+        Debug.WriteLine($"Ucitano {ChartData.Count} od {TotalRows} redova, {SeriesNames.Count} serija");
     }
-
-    public ObservableCollection<int> VisibleSeriesIndices { get; } = new();
 
     public void RebuildSeriesToggles()
     {

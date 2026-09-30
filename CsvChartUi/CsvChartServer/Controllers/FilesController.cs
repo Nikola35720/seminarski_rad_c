@@ -39,8 +39,8 @@ public class FilesController : ControllerBase
     {
         var path = Path.Combine(_folder, fileName);
 
-        Console.WriteLine($"Trazim: {path}");
-        Console.WriteLine($"Postoji? {System.IO.File.Exists(path)}");
+        Console.WriteLine($"[SERVER] Trazim: {path}");
+        Console.WriteLine($"[SERVER] Postoji? {System.IO.File.Exists(path)}");
 
         if (!System.IO.File.Exists(path))
             return NotFound();
@@ -53,6 +53,11 @@ public class FilesController : ControllerBase
                                               FileAccess.Read, FileShare.ReadWrite);
                 using var sr = new StreamReader(fs);
                 var content = await sr.ReadToEndAsync();
+
+                Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+                Response.Headers["Pragma"] = "no-cache";
+                Response.Headers["Expires"] = "0";
+
                 return Ok(new { FileName = fileName, Content = content });
             }
             catch (IOException) when (i < 9)

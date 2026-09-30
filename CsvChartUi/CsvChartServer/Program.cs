@@ -1,6 +1,5 @@
 using CsvChartServer.Hubs;
-using CsvChartServer.Service;
-using CsvChartServer.Service;
+using CsvChartServer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,4 +24,5 @@ var app = builder.Build();
 app.UseCors();
 app.MapControllers();
 app.MapHub<FileWatcherHub>("/filehub");
+
 app.Run("http://0.0.0.0:5000");
